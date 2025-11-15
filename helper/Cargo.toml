@@ -1,0 +1,12 @@
+[package]
+name = "helper"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.51", features = ["derive"] }
+dotenv = "0.15.0"
+semver = "1.0.27"
+url = "2.5.7"
+which = "8.0.0"
+whoami = "1.6.1"

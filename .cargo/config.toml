@@ -1,0 +1,9 @@
+[alias]
+pgmkdir = "run -p helper -- mkdir"
+pgstart = "run -p helper -- start"
+pgstop = "run -p helper -- stop"
+pghelp = "run -p helper -- help"
+pgstatus = "run -p helper -- status"
+pgsql = "run -p helper -- sql"
+check-health = "run -p helper -- check-health"
+backend = "run -p backend"
