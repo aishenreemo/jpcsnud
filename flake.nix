@@ -114,6 +114,7 @@
           pkgs.pkg-config
           pkgs.sqlx-cli
           pkgs.postgresql_17
+          pkgs.hurl
           rust-toolchain
           (pkgs.writeShellScriptBin "sql" (builtins.readFile ./backend/scripts/sql.sh))
         ];
@@ -170,6 +171,7 @@
           echo '  - run `sql` to enter postgresql environment'
           echo '  - run `cargo run -p backend` to run backend'
           echo '  - run `sqlx migrate run --source backend/migrations` to run migrations'
+          echo '  - run `hurl --variable "PORT=3000" backend/tests` to run tests'
         '';
 
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
