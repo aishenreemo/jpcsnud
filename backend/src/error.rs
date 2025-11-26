@@ -13,6 +13,7 @@ pub enum ServerError {
     NotFound,
     BadRequest(String),
     InternalServerError,
+    Conflict,
 }
 
 impl IntoResponse for ServerError {
@@ -21,6 +22,7 @@ impl IntoResponse for ServerError {
             ServerError::NotFound => StatusCode::NOT_FOUND,
             ServerError::BadRequest(_) => StatusCode::BAD_REQUEST,
             ServerError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
+            ServerError::Conflict => StatusCode::CONFLICT,
         };
 
         let msg = format!("{self:?}");
