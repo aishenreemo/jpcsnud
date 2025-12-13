@@ -7,6 +7,7 @@ use axum_extra::headers::authorization::Bearer;
 use axum_extra::headers::Authorization;
 use axum_extra::TypedHeader;
 use jsonwebtoken::Header;
+use jsonwebtoken::TokenData;
 use jsonwebtoken::Validation;
 use jsonwebtoken::decode;
 use jsonwebtoken::encode;
@@ -15,6 +16,8 @@ use serde::Serialize;
 use serde_json::json;
 use serde_json::Value;
 use std::sync::Arc;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
 use crate::error::ServerError;
 use crate::App;
@@ -27,7 +30,12 @@ pub struct Claims {
 
 impl Claims {
     pub fn new(sub: String, exp: usize) -> Self {
-        Claims { sub, exp }
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as usize;
+
+        Claims { sub, exp: now + exp }
     }
 }
 
@@ -44,8 +52,21 @@ where
             .await
             .map_err(|_| ServerError::BadRequest("Invalid Token".to_owned()))?;
 
-        let token_data = decode(bearer.token(), decoding_key, &Validation::default())
+
+        let token_data: TokenData<Claims> = decode(bearer.token(), decoding_key, &Validation::default())
             .map_err(|_| ServerError::BadRequest("Invalid Token".to_owned()))?;
+
+        let user_exists = sqlx::query_scalar!(
+            r#"SELECT EXISTS (SELECT 1 FROM "Users" WHERE user_id = $1)"#,
+            token_data.claims.sub.parse::<i32>().unwrap()
+        )
+            .fetch_one(&s.as_ref().db)
+            .await
+            .map_err(|_| ServerError::InternalServerError)?;
+
+        if !user_exists.unwrap_or(false) {
+            return Err(ServerError::Unauthorized);
+        }
 
         Ok(token_data.claims)
     }
@@ -73,8 +94,6 @@ pub async fn register(
     .fetch_one(&app.db)
     .await
     .map_err(|_| ServerError::Conflict)?;
-
-    println!("{record:?}");
 
     Ok(Json(json!({
         "user_id": record.user_id
@@ -105,5 +124,39 @@ pub async fn authorize(
     Ok(Json(json!({
         "access_token": token,
         "token_type": "Bearer".to_owned(),
+    })))
+}
+
+pub async fn protected(
+    claims: Claims,
+) -> Result<Json<Value>, ServerError> {
+    Ok(Json(json!({
+        "message": "You have accessed a protected route",
+        "user_id": claims.sub,
+    })))
+}
+
+pub async fn prune(
+    State(app): State<Arc<App>>,
+    claims: Claims,
+) -> Result<Json<Value>, ServerError> {
+    let user_id: i32 = claims
+        .sub
+        .parse()
+        .map_err(|_| ServerError::BadRequest("Invalid user id".to_owned()))?;
+
+    sqlx::query!(
+        r#"
+        DELETE FROM "Users"
+        WHERE user_id = $1
+        "#,
+        user_id
+    )
+    .execute(&app.db)
+    .await
+    .map_err(|_| ServerError::InternalServerError)?;
+
+    Ok(Json(json!({
+        "message": "User deleted successfully"
     })))
 }
