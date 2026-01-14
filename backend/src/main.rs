@@ -39,6 +39,8 @@ impl App {
             .route("/checkhealth", get(checkhealth))
             .route("/auth/register", post(auth::register))
             .route("/auth/authorize", post(auth::authorize))
+            .route("/auth/request_code", post(auth::request_code))
+            .route("/auth/verify_code", post(auth::verify_code))
             .route("/auth/protected", post(auth::protected))
             .route("/auth/prune", post(auth::prune))
             .with_state(app)

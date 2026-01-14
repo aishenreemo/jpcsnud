@@ -1,3 +1,9 @@
+# hurl backend/tests/register.hurl
+# hurl backend/tests/request_code.hurl
+# read -p "Enter verification code: " code
+# hurl --var code="$code" backend/tests/verify_code.hurl
+# hurl --var access_token="$ACCESS_TOKEN" --var user_id="$USER_ID" backend/tests/protected.hurl
+
 # =========================
 # Health Check
 # =========================
@@ -23,13 +29,29 @@ user_id: jsonpath "$.user_id"
 
 
 # =========================
-# Authorize (Login)
+# Request verification code (dev exposes code when EXPOSE_LOGIN_CODE=1)
 # =========================
-POST http://localhost:3000/auth/authorize
+POST http://localhost:3000/auth/request_code
 Content-Type: application/json
 
 {
   "email": "testuser@example.com"
+}
+
+HTTP/1.1 200
+[Captures]
+code: jsonpath "$.code"
+
+
+# =========================
+# Verify code and obtain token
+# =========================
+POST http://localhost:3000/auth/verify_code
+Content-Type: application/json
+
+{
+  "email": "testuser@example.com",
+  "code": "{{code}}"
 }
 
 HTTP/1.1 200

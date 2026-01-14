@@ -18,6 +18,7 @@ use serde_json::Value;
 use std::sync::Arc;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+use rand::Rng;
 
 use crate::error::ServerError;
 use crate::App;
@@ -108,7 +109,7 @@ pub struct AuthPayload {
 pub async fn authorize(
     State(app): State<Arc<App>>,
     Json(payload): Json<AuthPayload>,
-) -> Result<Json<serde_json::Value>, ServerError> {
+) -> Result<Json<Value>, ServerError> {
     let user = sqlx::query!(
         r#"SELECT user_id FROM "Users" WHERE email = $1"#,
         payload.email
@@ -116,6 +117,116 @@ pub async fn authorize(
     .fetch_one(&app.db)
     .await
     .map_err(|_| ServerError::NotFound)?;
+
+    let claims = Claims::new(user.user_id.to_string(), 5 * 60);
+    let token = encode(&Header::default(), &claims, &app.encoding_key)
+        .map_err(|_| ServerError::InternalServerError)?;
+
+    Ok(Json(json!({
+        "access_token": token,
+        "token_type": "Bearer".to_owned(),
+    })))
+}
+
+#[derive(Deserialize)]
+pub struct RequestCodePayload {
+    email: String,
+}
+
+#[axum::debug_handler]
+pub async fn request_code(
+    State(app): State<Arc<App>>,
+    Json(payload): Json<RequestCodePayload>,
+) -> Result<Json<Value>, ServerError> {
+    let user = sqlx::query!(
+        r#"SELECT user_id FROM "Users" WHERE email = $1"#,
+        payload.email
+    )
+    .fetch_one(&app.db)
+    .await
+    .map_err(|_| ServerError::NotFound)?;
+
+    let code: String = { 
+        let mut rng = rand::rng();
+        format!("{:06}", rng.random_range(0..1_000_000))
+    };
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+    let expires = now + 5 * 60; // 5 minutes
+
+    sqlx::query!(
+        r#"
+        INSERT INTO "LoginCodes" (user_id, code, expires_at, created_at)
+        VALUES ($1, $2, $3, $4)
+        "#,
+        user.user_id,
+        code,
+        expires,
+        now
+    )
+    .execute(&app.db)
+    .await
+    .map_err(|_| ServerError::InternalServerError)?;
+
+    // For development, print the code to stdout. In production, send via email.
+    println!("Login code for {} is {} (expires in 5 minutes)", payload.email, code);
+
+    Ok(Json(json!({
+        "message": "Verification code sent"
+    })))
+}
+
+#[derive(Deserialize)]
+pub struct VerifyCodePayload {
+    email: String,
+    code: String,
+}
+
+pub async fn verify_code(
+    State(app): State<Arc<App>>,
+    Json(payload): Json<VerifyCodePayload>,
+) -> Result<Json<Value>, ServerError> {
+    let user = sqlx::query!(
+        r#"SELECT user_id FROM "Users" WHERE email = $1"#,
+        payload.email
+    )
+    .fetch_one(&app.db)
+    .await
+    .map_err(|_| ServerError::NotFound)?;
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64;
+
+    let code_row = sqlx::query!(
+        r#"
+        SELECT id FROM "LoginCodes"
+        WHERE user_id = $1 AND code = $2 AND expires_at >= $3
+        LIMIT 1
+        "#,
+        user.user_id,
+        payload.code,
+        now
+    )
+    .fetch_optional(&app.db)
+    .await
+    .map_err(|_| ServerError::InternalServerError)?;
+
+    if code_row.is_none() {
+        return Err(ServerError::Unauthorized);
+    }
+
+    sqlx::query!(
+        r#"DELETE FROM "LoginCodes" WHERE user_id = $1"#,
+        user.user_id
+    )
+    .execute(&app.db)
+    .await
+    .map_err(|_| ServerError::InternalServerError)?;
 
     let claims = Claims::new(user.user_id.to_string(), 5 * 60);
     let token = encode(&Header::default(), &claims, &app.encoding_key)
