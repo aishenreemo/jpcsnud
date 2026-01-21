@@ -30,18 +30,4 @@ port="${hostport#*:}"
 
 username="$(whoami)"
 
-psql -U "$username" -d postgres -h "$host" -p "$port" -c "
-DO \$\$ 
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '${user}') THEN
-        CREATE ROLE ${user} LOGIN PASSWORD '${pass}';
-    END IF;
-
-    IF NOT EXISTS (SELECT FROM pg_database WHERE datname = '${dbname}') THEN
-        CREATE DATABASE ${dbname} OWNER ${user};
-    END IF;
-END
-\$\$;
-"
-
 exec psql -U "$user" -d "$dbname" -h "$host" -p "$port"

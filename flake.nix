@@ -114,20 +114,26 @@
           pkgs.pkg-config
           pkgs.sqlx-cli
           pkgs.postgresql_17
+          pkgs.hurl
           rust-toolchain
           (pkgs.writeShellScriptBin "sql" (builtins.readFile ./backend/scripts/sql.sh))
         ];
 
         shellHook = ''
           BACKEND_DIR=$(pwd)/backend
+          POSTGRES_STARTED=0
 
           on_exit() {
             echo "Leaving dev shell"
+            if [ $POSTGRES_STARTED -eq 0 ]; then
+              exit 0
+            fi
+
             pg_ctl -D $BACKEND_DIR/pgdata stop
 
             if [ $? -ne 0 ]; then
               echo "Error: pg_ctl stop failed" >&2
-              exit 1
+              exit $?
             fi
           }
 
@@ -145,21 +151,27 @@
           fi
 
           echo "Starting PostgreSQL..."
-          pg_ctl \
-            -D $BACKEND_DIR/pgdata \
-            -o "-k $BACKEND_DIR/pgsocket -h 127.0.0.1" \
-            -l $BACKEND_DIR/pglog/server.log \
-            start
-
+          pg_ctl -D $BACKEND_DIR/pgdata status
           if [ $? -ne 0 ]; then
+            pg_ctl \
+              -D $BACKEND_DIR/pgdata \
+              -o "-k $BACKEND_DIR/pgsocket -h 127.0.0.1" \
+              -l $BACKEND_DIR/pglog/server.log \
+              start
+
+            if [ $? -ne 0 ]; then
               echo "Error: pg_ctl start failed" >&2
-              exit 1
+              exit $?
+            fi
+
+            POSTGRES_STARTED=1
           fi
 
           echo "Starting backend dev environment..."
           echo '  - run `sql` to enter postgresql environment'
           echo '  - run `cargo run -p backend` to run backend'
           echo '  - run `sqlx migrate run --source backend/migrations` to run migrations'
+          echo '  - run `hurl --variable "PORT=3000" backend/tests` to run tests'
         '';
 
         LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [
