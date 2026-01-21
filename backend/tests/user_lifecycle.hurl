@@ -1,7 +1,7 @@
-# hurl backend/tests/register.hurl
-# hurl backend/tests/request_code.hurl
+# hurl --var email="user@example.com" backend/tests/register.hurl
+# hurl --var email="user@example.com" backend/tests/request_code.hurl
 # read -p "Enter verification code: " code
-# hurl --var code="$code" backend/tests/verify_code.hurl
+# hurl --var email="user@example.com" --var code="$code" backend/tests/verify_code.hurl
 # hurl --var access_token="$ACCESS_TOKEN" --var user_id="$USER_ID" backend/tests/protected.hurl
 
 # =========================
@@ -19,7 +19,7 @@ POST http://localhost:3000/auth/register
 Content-Type: application/json
 
 {
-  "email": "testuser@example.com",
+  "email": "{{email}}",
   "name": "Test user"
 }
 
@@ -35,7 +35,7 @@ POST http://localhost:3000/auth/request_code
 Content-Type: application/json
 
 {
-  "email": "testuser@example.com"
+  "email": "{{email}}"
 }
 
 HTTP/1.1 200
@@ -50,7 +50,7 @@ POST http://localhost:3000/auth/verify_code
 Content-Type: application/json
 
 {
-  "email": "testuser@example.com",
+  "email": "{{email}}",
   "code": "{{code}}"
 }
 

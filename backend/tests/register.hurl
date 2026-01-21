@@ -3,8 +3,8 @@ POST http://localhost:3000/auth/register
 Content-Type: application/json
 
 {
-  "email": "testuser@example.com",
-  "name": "Test user"
+  "email": "{{email}}",
+  "name": "{{name}}"
 }
 
 HTTP/1.1 200

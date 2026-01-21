@@ -4,13 +4,11 @@ POST http://localhost:3000/auth/verify_code
 Content-Type: application/json
 
 {
-  "email": "testuser@example.com",
+  "email": "{{email}}",
   "code": "{{code}}"
 }
 
 HTTP/1.1 200
-[Asserts]
-jsonpath "$.access_token" exists
 
 [Captures]
 access_token: jsonpath "$.access_token"

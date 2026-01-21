@@ -169,10 +169,21 @@ pub async fn request_code(
     )
     .execute(&app.db)
     .await
-    .map_err(|_| ServerError::InternalServerError)?;
+    .map_err(|e| {
+        eprintln!("Failed to insert login code: {:?}", e);
+        ServerError::InternalServerError
+    })?;
 
-    // For development, print the code to stdout. In production, send via email.
-    println!("Login code for {} is {} (expires in 5 minutes)", payload.email, code);
+    // Send verification code via email or print to console for development
+    if let Some(email_service) = &app.email_service {
+        email_service
+            .send_verification_code(&payload.email, &code)
+            .await?;
+        println!("Verification code sent to {}", payload.email);
+    } else {
+        // For development without email service, print the code to stdout
+        println!("Login code for {} is {} (expires in 5 minutes)", payload.email, code);
+    }
 
     Ok(Json(json!({
         "message": "Verification code sent"

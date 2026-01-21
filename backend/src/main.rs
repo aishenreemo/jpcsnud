@@ -14,16 +14,20 @@ use sqlx::Pool;
 use sqlx::Postgres;
 
 mod auth;
+mod email;
 mod error;
+
+use email::EmailService;
 
 pub struct App {
     db: Pool<Postgres>,
     encoding_key: EncodingKey,
     decoding_key: DecodingKey,
+    email_service: Option<EmailService>,
 }
 
 impl App {
-    pub fn new(db: Pool<Postgres>, jwt_secret: String) -> Arc<Self> {
+    pub fn new(db: Pool<Postgres>, jwt_secret: String, email_service: Option<EmailService>) -> Arc<Self> {
         let bytes = jwt_secret.as_bytes();
         let encoding_key = EncodingKey::from_secret(bytes);
         let decoding_key = DecodingKey::from_secret(bytes);
@@ -31,6 +35,7 @@ impl App {
             db,
             encoding_key,
             decoding_key,
+            email_service,
         })
     }
 
@@ -60,7 +65,17 @@ async fn main() -> Result<()> {
     let pool = PgPool::connect(&database_url).await?;
     println!("Connected to PostgreSQL!");
 
-    let app = App::new(pool.clone(), jwt_secret);
+    let envs = ["SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD", "FROM_EMAIL"];
+    let email_service = envs.iter().all(|var| std::env::var(var).is_ok()).then(|| {
+        EmailService::new(
+            std::env::var("SMTP_HOST").unwrap(),
+            std::env::var("SMTP_USERNAME").unwrap(),
+            std::env::var("SMTP_PASSWORD").unwrap(),
+            std::env::var("FROM_EMAIL").unwrap(),
+        )
+    });
+
+    let app = App::new(pool.clone(), jwt_secret, email_service);
     let router = App::new_router(app);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
