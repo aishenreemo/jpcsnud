@@ -102,8 +102,8 @@
         ];
         shellHook = ''
           echo "Starting frontend dev environment..."
-          tailwindcss -i tailwind.css --config tailwind.config.js -o assets/tailwind.css --watch >/dev/null 2>&1 &
-          dx serve
+          echo '  - run `tailwindcss -i tailwind.css --config tailwind.config.js -o assets/tailwind.css --watch` to run tailwind'
+          echo '  - run `dx serve` to run dioxus'
         '';
       };
 
